@@ -1,0 +1,16 @@
+{
+    "permissions": {
+        "allow": [
+            "Bash(powershell.exe *)",
+            "Bash(cmd.exe *)",
+            "Bash(export *)",
+            "Bash(wget *)",
+            "Bash(curl *)",
+            "Bash(gh *)",
+            "Bash(docker ps *)",
+            "Bash(docker images *)",
+            "Bash(docker logs *)",
+            "Bash(docker inspect *)"
+        ]
+    }
+}
