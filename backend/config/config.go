@@ -15,6 +15,10 @@ type Config struct {
 
 	RedisAddr     string
 	RedisPassword string
+
+	GitHubToken    string
+	DeepSeekAPIKey string
+	DeepSeekModel  string
 }
 
 func Load() *Config {
@@ -31,6 +35,10 @@ func Load() *Config {
 
 		RedisAddr:     getEnv("REDIS_ADDR", "localhost:6379"),
 		RedisPassword: getEnv("REDIS_PASSWORD", ""),
+
+		GitHubToken:    getEnv("GITHUB_TOKEN", ""),
+		DeepSeekAPIKey: getEnv("DEEPSEEK_API_KEY", ""),
+		DeepSeekModel:  getEnv("DEEPSEEK_MODEL", "deepseek-chat"),
 	}
 }
 
