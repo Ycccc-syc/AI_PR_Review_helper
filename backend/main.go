@@ -10,6 +10,7 @@ import (
 
 	"qiniudemo/config"
 	"qiniudemo/logger"
+	"qiniudemo/repository"
 	"qiniudemo/router"
 
 	"github.com/gin-gonic/gin"
@@ -23,7 +24,13 @@ func main() {
 	logger.Init(cfg.LogLevel)
 	defer logger.Sync()
 
-	r := router.Setup(cfg)
+	db, err := repository.InitDB(cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName)
+	if err != nil {
+		logger.Log.Fatal("数据库初始化失败", zap.Error(err))
+	}
+	defer db.Close()
+
+	r := router.Setup(cfg, db)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,

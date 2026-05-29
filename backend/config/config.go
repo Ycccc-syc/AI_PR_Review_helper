@@ -23,6 +23,8 @@ type Config struct {
 	GitHubToken    string
 	DeepSeekAPIKey string
 	DeepSeekModel  string
+
+	JWTSecret string
 }
 
 func Load() *Config {
@@ -45,6 +47,8 @@ func Load() *Config {
 		GitHubToken:    getEnv("GITHUB_TOKEN", ""),
 		DeepSeekAPIKey: getEnv("DEEPSEEK_API_KEY", ""),
 		DeepSeekModel:  getEnv("DEEPSEEK_MODEL", "deepseek-chat"),
+
+		JWTSecret: getEnv("JWT_SECRET", "change-me-in-production"),
 	}
 }
 

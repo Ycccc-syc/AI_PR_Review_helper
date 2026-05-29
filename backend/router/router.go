@@ -1,6 +1,8 @@
 package router
 
 import (
+	"database/sql"
+
 	"qiniudemo/config"
 	"qiniudemo/handler"
 	"qiniudemo/middleware"
@@ -8,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func Setup(cfg *config.Config) *gin.Engine {
+func Setup(cfg *config.Config, db *sql.DB) *gin.Engine {
 	r := gin.New()
 
 	r.Use(
@@ -20,7 +22,19 @@ func Setup(cfg *config.Config) *gin.Engine {
 	api := r.Group("/api/v1")
 	{
 		api.GET("/health", handler.Health)
-		api.POST("/review", handler.Review(cfg))
+
+		auth := api.Group("/auth")
+		{
+			auth.POST("/register", handler.Register(db))
+			auth.POST("/login", handler.Login(db, cfg))
+		}
+
+		protected := api.Group("")
+		protected.Use(middleware.Auth(cfg))
+		{
+			protected.POST("/review", handler.Review(cfg, db))
+			protected.GET("/reviews", handler.Reviews(db))
+		}
 	}
 
 	return r

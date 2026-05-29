@@ -1,13 +1,43 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import ReviewInput from './components/ReviewInput.vue'
 import ReviewResult from './components/ReviewResult.vue'
+import AuthForm from './components/AuthForm.vue'
+import ReviewHistory from './components/ReviewHistory.vue'
 import { analyzePR, type ReviewResponse } from './api/review'
+import { getToken, logout as doLogout } from './api/auth'
 
 const reviewRef = ref<InstanceType<typeof ReviewInput>>()
+const historyRef = ref<InstanceType<typeof ReviewHistory>>()
 const result = ref<ReviewResponse | null>(null)
 const error = ref('')
 const activeTab = ref('risks')
+
+const username = ref(localStorage.getItem('ai_pr_review_user') || '')
+const showAuth = ref(false)
+const showHistory = ref(false)
+
+const isLoggedIn = computed(() => !!getToken())
+
+function onLogin(name: string) {
+  username.value = name
+  localStorage.setItem('ai_pr_review_user', name)
+  showAuth.value = false
+}
+
+function onLogout() {
+  doLogout()
+  username.value = ''
+  localStorage.removeItem('ai_pr_review_user')
+  showHistory.value = false
+}
+
+function toggleHistory() {
+  showHistory.value = !showHistory.value
+  if (showHistory.value) {
+    historyRef.value?.refresh()
+  }
+}
 
 async function onSubmit(url: string) {
   error.value = ''
@@ -15,7 +45,7 @@ async function onSubmit(url: string) {
   reviewRef.value?.setLoading(true)
 
   try {
-    result.value = await analyzePR(url)
+    result.value = await analyzePR(url, getToken())
   } catch (e: any) {
     error.value = e.message || '分析失败，请稍后重试'
   } finally {
@@ -26,15 +56,43 @@ async function onSubmit(url: string) {
 
 <template>
   <div class="app">
-    <ReviewInput ref="reviewRef" @submit="onSubmit" />
+    <!-- 导航栏 -->
+    <nav class="navbar">
+      <span class="brand">AI PR Review</span>
+      <div class="nav-actions">
+        <template v-if="isLoggedIn">
+          <span class="user-tag">{{ username }}</span>
+          <button class="nav-btn" @click="toggleHistory">
+            {{ showHistory ? '返回审查' : '历史记录' }}
+          </button>
+          <button class="nav-btn logout" @click="onLogout">退出</button>
+        </template>
+        <template v-else>
+          <button class="nav-btn" @click="showAuth = !showAuth">
+            {{ showAuth ? '关闭' : '登录 / 注册' }}
+          </button>
+        </template>
+      </div>
+    </nav>
 
-    <div v-if="error" class="error">{{ error }}</div>
+    <!-- 登录/注册面板 -->
+    <AuthForm v-if="showAuth" @login="onLogin" />
 
-    <ReviewResult
-      v-if="result"
-      :data="result"
-      v-model:tab="activeTab"
-    />
+    <!-- 历史记录面板 -->
+    <ReviewHistory v-if="showHistory" ref="historyRef" />
+
+    <!-- 主审查界面 -->
+    <template v-if="!showHistory">
+      <ReviewInput ref="reviewRef" @submit="onSubmit" />
+
+      <div v-if="error" class="error">{{ error }}</div>
+
+      <ReviewResult
+        v-if="result"
+        :data="result"
+        v-model:tab="activeTab"
+      />
+    </template>
   </div>
 </template>
 
@@ -42,6 +100,59 @@ async function onSubmit(url: string) {
 .app {
   max-width: 900px;
   margin: 0 auto;
+}
+
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+
+.brand {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-tag {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+}
+
+.nav-btn {
+  padding: 6px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.nav-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.nav-btn.logout:hover {
+  border-color: var(--red);
+  color: var(--red);
 }
 
 .error {
