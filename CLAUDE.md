@@ -4,11 +4,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目背景
 
+**AI PR Review 助手** — 输入 GitHub PR 链接，自动拉取代码变更，调用 DeepSeek LLM 进行智能代码审查，输出风险项和改进建议。
+
 本仓库用于七牛云 X Engineer 暑期实训营选拔。规则：
 - 72 小时限时开发，个人或组队
 - **必须持续 commit/PR**，最后一天一次性提交视为无效
 - 提交物：GitHub 仓库 + README + Demo 视频（B站/云盘）
 - 评审维度：完整度与创新(40%) + 开发过程与质量(40%) + 演示与表达(20%)
+
+## 当前进度
+
+| PR | 内容 | 状态 |
+|----|------|------|
+| PR1 | 数据模型 + 配置扩展 | ✅ 已合并 |
+| PR2 | GitHub API 封装 | ✅ 已合并 |
+| PR3 | DeepSeek Client + Prompt 模板 | ✅ 已合并 |
+| PR4 | Service 层编排 | ✅ 已合并 |
+| PR5 | Handler + 路由注册 | ✅ 已合并 |
+| PR6 | 前端页面 | ✅ 已合并 |
+| PR7 | README 完善 | ✅ 已合并 |
+| PR8 | 边界处理 + 优化 | ✅ 已合并 |
+
+> Day 1 MVP 已跑通，Day 2 差异化功能（SSE 流式、自动评论、Review 历史）和 Day 3 收尾（Dashboard、多文件分组、OAuth）可按需继续。
 
 ## 常用命令
 
@@ -51,8 +68,10 @@ handler → service → repository → model
 
 - **handler**：只做参数校验和调用 service，不含业务逻辑
 - **service**：业务逻辑层
-- **repository**：数据访问层（DB/Redis）
+- **repository**：数据访问层（GitHub API / DB / Redis）
 - **model**：数据结构定义 + 统一响应
+- **llm**：DeepSeek API 客户端（OpenAI 兼容接口）
+- **prompt**：LLM System/User Prompt 模板
 
 ### API 统一响应
 
@@ -71,7 +90,9 @@ Recovery → Logger → CORS → Handler
 
 ### 配置
 
-全部通过环境变量注入，见 `.env.example`。`config/config.go` 中统一加载。
+全部通过环境变量注入，见 `.env.example`。`config/config.go` 中统一加载，包含 `loadDotEnv()` 函数自动从当前/父目录查找并加载 `.env` 文件（仅设置未定义的环境变量，不覆盖已有值）。
+
+`router.Setup(cfg *config.Config)` 接收配置后，传入 handler（如 `handler.Review(cfg)`），避免 handler 内部直接 import config。
 
 ### Git 提交规范（实训营强制要求）
 
