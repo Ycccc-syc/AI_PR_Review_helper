@@ -113,6 +113,65 @@ func AnalyzePR(cfg *config.Config, prURL string) (*model.ReviewResponse, error) 
 	return &result, nil
 }
 
+// AnalyzePRStream 流式 PR 分析，onChunk 每收到一段 LLM 输出就回调（便于 SSE 推送）
+func AnalyzePRStream(cfg *config.Config, prURL string, onChunk func(string)) (*model.ReviewResponse, error) {
+	pr, err := repository.ParsePRURL(prURL)
+	if err != nil {
+		return nil, fmt.Errorf("解析 PR URL 失败: %w", err)
+	}
+
+	if err := repository.FetchPRMeta(cfg.GitHubToken, pr); err != nil {
+		return nil, fmt.Errorf("获取 PR 信息失败: %w", err)
+	}
+
+	diff, err := repository.FetchPRDiff(cfg.GitHubToken, pr)
+	if err != nil {
+		return nil, fmt.Errorf("获取 PR diff 失败: %w", err)
+	}
+
+	if diff == "" {
+		return nil, fmt.Errorf("该 PR 没有代码变更")
+	}
+
+	diff = filterDiff(diff)
+	if diff == "" {
+		return nil, fmt.Errorf("该 PR 的文件变更已被过滤")
+	}
+
+	pr.Description = formatDescription(pr.Description)
+
+	// 大 PR 降级为非流式分片分析
+	if strings.Count(diff, "\n") > maxDiffLines {
+		return AnalyzePR(cfg, prURL)
+	}
+
+	messages := prompt.BuildMessages(pr.Title, pr.Description, diff)
+
+	var fullText strings.Builder
+	for chunk := range llm.CallStream(cfg.DeepSeekAPIKey, cfg.DeepSeekModel, messages) {
+		if chunk.Error != nil {
+			return nil, chunk.Error
+		}
+		if chunk.Done {
+			break
+		}
+		fullText.WriteString(chunk.Content)
+		if onChunk != nil {
+			onChunk(chunk.Content)
+		}
+	}
+
+	jsonStr := extractJSON(fullText.String())
+	var result model.ReviewResponse
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		logger.Log.Error("解析 LLM JSON 失败", zap.String("raw", fullText.String()[:min(len(fullText.String()), 500)]))
+		return nil, fmt.Errorf("解析分析结果失败，模型返回格式异常: %w", err)
+	}
+
+	result.Stats = buildStats(pr, result.RiskItems)
+	return &result, nil
+}
+
 func analyzeSingle(cfg *config.Config, pr *repository.PRInfo, diff string) (model.ReviewResponse, error) {
 	messages := prompt.BuildMessages(pr.Title, pr.Description, diff)
 	return callAndParse(cfg, messages)
