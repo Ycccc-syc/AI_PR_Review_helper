@@ -1,18 +1,28 @@
-# <!-- TODO: 项目名称 -->
+# AI PR Review 助手
 
-<!-- TODO: 一句话描述项目 -->
+基于 DeepSeek 大模型的 GitHub PR 自动代码评审工具。
 
 ## Demo 视频
 
-<!-- TODO: 替换为实际的B站/云盘链接 -->
-
-> [点击观看 Demo 视频]()（待上传）
+> [点击观看 Demo 视频](https://www.bilibili.com/)（待上传）
 
 ---
 
 ## 项目简介
 
-<!-- TODO: 描述项目背景、目标用户、解决的痛点 -->
+AI PR Review 助手帮助开发者快速理解 Pull Request 变更、发现潜在 Bug 和安全风险。用户只需输入 GitHub PR 链接，系统自动获取代码 diff 并通过 DeepSeek 大模型进行智能分析，输出结构化的 Review 报告（变更总结 + 风险识别 + 改进建议）。
+
+### 目标用户
+
+- 团队 Tech Lead / Senior Developer 需要高效 Review 大量 PR
+- 开源项目 Maintainer 需要快速了解外部贡献者的代码质量
+- 个人开发者需要 AI 辅助检查代码问题
+
+### 核心功能
+
+- 输入 GitHub PR URL，一键获取代码变更并分析
+- 结构化报告：变更总结、风险代码标注（高/中/低严重度）、改进建议
+- 支持大 PR 自动分片分析（>8000 行按文件拆分）
 
 ## 技术栈
 
@@ -31,7 +41,7 @@ frontend (Vue 3)  ──HTTP──>  backend (Go + Gin)
                                   │
                     ┌─────────────┼─────────────┐
                     ▼             ▼             ▼
-                PostgreSQL     Redis       <!-- TODO: 外部服务/API -->
+                PostgreSQL     Redis       DeepSeek API / GitHub API
 ```
 
 ### 后端分层
@@ -93,14 +103,13 @@ go run main.go
 |------|------|
 | 0 | 成功 |
 | -1 | 系统异常 |
-| <!-- TODO: 业务错误码 --> |
 
 ### 接口列表
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/v1/health` | 健康检查 |
-| <!-- TODO: 补充业务接口 --> |
+| POST | `/api/v1/review` | PR 代码审查（body: `{"pr_url": "..."}`） |
 
 ## 第三方库说明
 
@@ -108,26 +117,22 @@ go run main.go
 |------|------|------|
 | github.com/gin-gonic/gin | HTTP 框架 | 全局 |
 | go.uber.org/zap | 结构化日志 | 全局 |
-| <!-- TODO: 补充其他第三方库 --> |
+| 无其他第三方依赖 | 纯标准库 + DeepSeek/GitHub HTTP API | |
 
-<!-- TODO: 如有使用旧代码/开源参考，在此声明来源 -->
+## 声明
+
+本项目为七牛云 X Engineer 暑期实训营选拔作品，所有代码独立完成，未使用旧代码或开源项目参考。
 
 ## 团队分工
 
-<!-- TODO: 如组队，填写成员及分工；如个人完成，填"独立完成" -->
-
-| 成员 | 分工 |
-|------|------|
-| <!-- TODO: 姓名 | 负责模块 --> |
+独立完成
 
 ---
 
 ## 开发日志
 
-<!-- TODO: 记录每日进度和关键决策 -->
-
 | 日期 | 进展 | 备注 |
 |------|------|------|
 | Day 1 | 项目初始化 + 基础骨架 | |
-| Day 2 | | |
-| Day 3 | Demo 录制 + README 完善 | |
+| Day 2 | 数据模型、GitHub API、DeepSeek client、Service/Handler | |
+| Day 3 | 前端页面 + Demo 录制 + README 完善 | |
