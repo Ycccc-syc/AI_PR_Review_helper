@@ -32,15 +32,20 @@ export interface ReviewResponse {
   stats: ReviewStats
 }
 
-export async function analyzePR(prUrl: string): Promise<ReviewResponse> {
+export async function analyzePR(prUrl: string, token?: string | null): Promise<ReviewResponse> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 120_000)
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
 
   let resp: Response
   try {
     resp = await fetch('/api/v1/review', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ pr_url: prUrl }),
       signal: controller.signal,
     })
