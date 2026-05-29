@@ -1,6 +1,10 @@
 package config
 
-import "os"
+import (
+	"bufio"
+	"os"
+	"strings"
+)
 
 type Config struct {
 	Port    string
@@ -22,6 +26,8 @@ type Config struct {
 }
 
 func Load() *Config {
+	loadDotEnv()
+
 	return &Config{
 		Port:     getEnv("PORT", "8080"),
 		GinMode:  getEnv("GIN_MODE", "debug"),
@@ -47,4 +53,38 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// loadDotEnv 从项目根目录读取 .env 文件，注入环境变量（不覆盖已有值）
+func loadDotEnv() {
+	paths := []string{".env", "../.env", "../../.env"}
+	var file *os.File
+	var err error
+	for _, p := range paths {
+		file, err = os.Open(p)
+		if err == nil {
+			break
+		}
+	}
+	if file == nil {
+		return
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		idx := strings.Index(line, "=")
+		if idx == -1 {
+			continue
+		}
+		key := strings.TrimSpace(line[:idx])
+		val := strings.TrimSpace(line[idx+1:])
+		if os.Getenv(key) == "" {
+			os.Setenv(key, val)
+		}
+	}
 }

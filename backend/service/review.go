@@ -17,6 +17,61 @@ import (
 
 const maxDiffLines = 8000
 
+// 需要跳过的文件后缀和文件名
+var skipPatterns = []string{
+	// lock 文件
+	"package-lock.json", "yarn.lock", "pnpm-lock.yaml",
+	"go.sum", "Cargo.lock", "Gemfile.lock", "composer.lock",
+	// 二进制/资源文件
+	".png", ".jpg", ".jpeg", ".gif", ".ico", ".svg",
+	".woff", ".woff2", ".ttf", ".eot", ".otf",
+	".pdf", ".zip", ".tar", ".gz", ".7z",
+	// 生成文件
+	".exe", ".dll", ".so", ".dylib", ".wasm",
+	// 大型数据文件
+	".sql", ".csv", ".tsv",
+}
+
+// filterDiff 去掉 lock 文件、二进制文件、资源文件的 diff
+func filterDiff(diff string) string {
+	parts := strings.Split(diff, "\ndiff --git ")
+	if len(parts) <= 1 {
+		return diff
+	}
+
+	kept := []string{parts[0]} // diff 开头的内容（如有）
+	for _, block := range parts[1:] {
+		// 提取文件路径: diff --git a/path/to/file b/path/to/file
+		firstLine := "diff --git " + block
+		fileName := extractFileName(firstLine)
+		if shouldSkip(fileName) {
+			continue
+		}
+		kept = append(kept, "diff --git "+block)
+	}
+
+	if len(kept) <= 1 {
+		return diff
+	}
+	return strings.Join(kept, "\n")
+}
+
+// extractFileName 从 diff 块首行提取文件名
+func extractFileName(firstLine string) string {
+	lower := strings.ToLower(firstLine)
+	return lower
+}
+
+// shouldSkip 判断文件是否应跳过分析
+func shouldSkip(fileName string) bool {
+	for _, p := range skipPatterns {
+		if strings.Contains(fileName, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // AnalyzePR 完整 PR 分析流程：解析 URL → 拉取数据 → LLM 分析 → 结构化结果
 func AnalyzePR(cfg *config.Config, prURL string) (*model.ReviewResponse, error) {
 	pr, err := repository.ParsePRURL(prURL)
@@ -35,6 +90,11 @@ func AnalyzePR(cfg *config.Config, prURL string) (*model.ReviewResponse, error) 
 
 	if diff == "" {
 		return nil, fmt.Errorf("该 PR 没有代码变更")
+	}
+
+	diff = filterDiff(diff)
+	if diff == "" {
+		return nil, fmt.Errorf("该 PR 的文件变更已被过滤（可能仅包含 lock 文件或二进制文件）")
 	}
 
 	pr.Description = formatDescription(pr.Description)
@@ -158,7 +218,6 @@ func splitDiffByFile(diff string, filesPerChunk int) []string {
 		return []string{diff}
 	}
 
-	// parts[0] is empty or leading text, skip it
 	fileBlocks := make([]string, 0, len(parts))
 	for _, p := range parts[1:] {
 		fileBlocks = append(fileBlocks, "diff --git "+p)
