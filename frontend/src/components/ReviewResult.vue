@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import type { ReviewResponse } from '../api/review'
 
 const props = defineProps<{
   data: ReviewResponse
 }>()
+
+const activeTab = defineModel('tab', { default: 'risks' })
+const expanded = ref<Record<number, boolean>>({})
+
+function toggle(i: number) {
+  expanded.value[i] = !expanded.value[i]
+}
 
 const tabs = [
   { key: 'summary', label: '变更总结' },
@@ -12,25 +19,35 @@ const tabs = [
   { key: 'suggestions', label: `改进建议 (${props.data.suggestions.length})` },
 ]
 
-const activeTab = defineModel('tab', { default: 'risks' })
-
-const severityLabel = { high: '高', medium: '中', low: '低' }
-const severityColor = { high: '#dc2626', medium: '#d97706', low: '#6b7280' }
-
 const hasRisks = computed(() => props.data.risk_items.length > 0)
 const hasSuggestions = computed(() => props.data.suggestions.length > 0)
 </script>
 
 <template>
   <div v-if="data" class="result-panel">
-    <!-- 统计卡片 -->
+    <!-- 统计栏 -->
     <div class="stats">
-      <div class="stat"><span class="num">{{ data.stats.files_changed }}</span> 文件变更</div>
+      <div class="stat">
+        <span class="num">{{ data.stats.files_changed }}</span>
+        <span class="label">文件变更</span>
+      </div>
       <div class="stat add">+{{ data.stats.additions }}</div>
       <div class="stat del">-{{ data.stats.deletions }}</div>
-      <div class="stat" :style="{ color: severityColor.high }">🔴 {{ data.stats.risk_high }}</div>
-      <div class="stat" :style="{ color: severityColor.medium }">🟡 {{ data.stats.risk_medium }}</div>
-      <div class="stat" :style="{ color: severityColor.low }">⚪ {{ data.stats.risk_low }}</div>
+      <div class="stat risk">
+        <span class="dot" style="background:#f85149"></span>
+        <span class="num">{{ data.stats.risk_high }}</span>
+        <span class="label">高危</span>
+      </div>
+      <div class="stat risk">
+        <span class="dot" style="background:#d29922"></span>
+        <span class="num">{{ data.stats.risk_medium }}</span>
+        <span class="label">中危</span>
+      </div>
+      <div class="stat risk">
+        <span class="dot" style="background:#6e7681"></span>
+        <span class="num">{{ data.stats.risk_low }}</span>
+        <span class="label">低危</span>
+      </div>
     </div>
 
     <!-- Tab 切换 -->
@@ -53,27 +70,45 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
     <!-- 风险列表 -->
     <div v-if="activeTab === 'risks'" class="tab-content">
       <div v-if="!hasRisks" class="empty">未发现风险代码</div>
-      <div v-for="(r, i) in data.risk_items" :key="i" class="risk-card">
+      <div v-for="(r, i) in data.risk_items" :key="i" class="risk-card" :class="'severity-' + r.severity">
         <div class="risk-header">
-          <span class="severity" :style="{ background: severityColor[r.severity] }">
-            {{ severityLabel[r.severity] }}
+          <span class="severity-badge" :class="r.severity">
+            {{ { high: 'HIGH', medium: 'MED', low: 'LOW' }[r.severity] }}
           </span>
           <span class="risk-title">{{ r.title }}</span>
         </div>
-        <div class="risk-location">{{ r.file }}:{{ r.line }}</div>
+        <div class="risk-file">{{ r.file }}<span class="line-num">:{{ r.line }}</span></div>
         <p class="risk-detail">{{ r.detail }}</p>
-        <p class="risk-fix">💡 {{ r.suggestion }}</p>
+        <div class="risk-fix">
+          <div class="fix-label">修复建议</div>
+          {{ r.suggestion }}
+        </div>
       </div>
     </div>
 
-    <!-- 建议列表 -->
+    <!-- 改进建议 -->
     <div v-if="activeTab === 'suggestions'" class="tab-content">
       <div v-if="!hasSuggestions" class="empty">暂无改进建议</div>
-      <div v-for="(s, i) in data.suggestions" :key="i" class="suggestion-card">
-        <span class="priority" :style="{ background: severityColor[s.priority] }">
-          {{ severityLabel[s.priority] }}
-        </span>
-        <p>{{ s.content }}</p>
+      <div v-for="(s, i) in data.suggestions" :key="i" class="suggestion-card" @click="toggle(i)">
+        <div class="sug-header">
+          <span class="priority-badge" :class="s.priority">
+            {{ { high: 'HIGH', medium: 'MED', low: 'LOW' }[s.priority] }}
+          </span>
+          <span class="sug-content">{{ s.content }}</span>
+          <svg
+            class="chevron"
+            :class="{ open: expanded[i] }"
+            width="16" height="16" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2"
+          >
+            <path d="M6 9l6 6 6-6"/>
+          </svg>
+        </div>
+        <div v-if="expanded[i]" class="sug-detail">
+          <div class="code-block">
+            <code>// 示例代码片段将在后续版本中根据具体上下文生成</code>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -83,36 +118,61 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
 .result-panel {
   max-width: 800px;
   margin: 0 auto;
-  padding: 0 24px 48px;
+  padding: 0 24px 64px;
+  animation: slideUp 0.4s ease;
 }
 
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 统计栏 */
 .stats {
   display: flex;
-  gap: 16px;
+  gap: 4px;
   padding: 16px 24px;
-  background: #f9fafb;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin-bottom: 24px;
   flex-wrap: wrap;
 }
 
 .stat {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
   font-size: 13px;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
 .stat .num {
+  font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 18px;
+  font-size: 16px;
 }
 
-.stat.add { color: #16a34a; font-weight: 700; }
-.stat.del { color: #dc2626; font-weight: 700; }
+.stat .label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
 
+.stat.add { color: var(--green); }
+.stat.del { color: var(--red); }
+
+.stat.risk .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Tabs */
 .tabs {
   display: flex;
   gap: 0;
-  border-bottom: 2px solid #e5e7eb;
+  border-bottom: 1px solid var(--border);
   margin-bottom: 24px;
 }
 
@@ -121,39 +181,54 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
   border: none;
   background: none;
   font-size: 14px;
-  color: #6b7280;
+  color: var(--text-muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
+  margin-bottom: -1px;
+  transition: color 0.15s;
+}
+
+.tabs button:hover {
+  color: var(--text-primary);
 }
 
 .tabs button.active {
-  color: #6366f1;
-  border-bottom-color: #6366f1;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 .tab-content {
   min-height: 120px;
 }
 
+/* Summary */
 .summary p {
   line-height: 1.8;
-  color: #374151;
+  color: var(--text-secondary);
 }
 
+/* Empty */
 .empty {
   text-align: center;
-  color: #9ca3af;
-  padding: 32px;
+  color: var(--text-muted);
+  padding: 40px;
+  font-size: 14px;
 }
 
+/* Risk card */
 .risk-card {
-  background: #fff;
-  border: 1px solid #f0f0f0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 12px;
+  border-left: 3px solid var(--border);
+  transition: border-color 0.2s;
 }
+
+.risk-card.severity-high { border-left-color: var(--red); }
+.risk-card.severity-medium { border-left-color: var(--orange); }
+.risk-card.severity-low { border-left-color: var(--text-muted); }
 
 .risk-header {
   display: flex;
@@ -162,52 +237,132 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
   margin-bottom: 8px;
 }
 
-.severity,
-.priority {
-  color: #fff;
-  font-size: 11px;
-  padding: 2px 8px;
+.severity-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
   border-radius: 4px;
   flex-shrink: 0;
+  letter-spacing: 0.5px;
 }
+
+.severity-badge.high { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+.severity-badge.medium { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+.severity-badge.low { background: rgba(110, 118, 129, 0.15); color: var(--text-muted); }
 
 .risk-title {
   font-weight: 600;
   font-size: 15px;
+  color: var(--text-primary);
 }
 
-.risk-location {
+.risk-file {
+  font-family: var(--font-mono);
   font-size: 12px;
-  color: #6366f1;
-  font-family: monospace;
+  color: var(--accent-hover);
   margin-bottom: 8px;
+}
+
+.risk-file .line-num {
+  color: var(--orange);
 }
 
 .risk-detail {
-  color: #4b5563;
+  color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.7;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .risk-fix {
-  background: #f0fdf4;
-  padding: 8px 12px;
+  background: rgba(63, 185, 80, 0.06);
+  border: 1px solid rgba(63, 185, 80, 0.12);
+  padding: 10px 14px;
   border-radius: 6px;
   font-size: 13px;
-  color: #166534;
+  color: #7ee787;
+  line-height: 1.6;
 }
 
+.fix-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--green);
+  margin-bottom: 4px;
+}
+
+/* Suggestion card */
 .suggestion-card {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-  padding: 14px 0;
-  border-bottom: 1px solid #f0f0f0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
 }
 
-.suggestion-card p {
-  color: #374151;
-  line-height: 1.7;
+.suggestion-card:hover {
+  border-color: var(--accent);
+}
+
+.sug-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.priority-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  letter-spacing: 0.5px;
+}
+
+.priority-badge.high { background: rgba(248, 81, 73, 0.15); color: var(--red); }
+.priority-badge.medium { background: rgba(210, 153, 34, 0.15); color: var(--orange); }
+.priority-badge.low { background: rgba(110, 118, 129, 0.15); color: var(--text-muted); }
+
+.sug-content {
+  flex: 1;
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s;
+  margin-top: 2px;
+}
+
+.chevron.open {
+  transform: rotate(180deg);
+}
+
+.sug-detail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.code-block {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  overflow-x: auto;
 }
 </style>
