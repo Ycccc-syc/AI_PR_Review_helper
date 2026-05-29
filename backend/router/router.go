@@ -33,6 +33,7 @@ func Setup(cfg *config.Config, db *sql.DB) *gin.Engine {
 		protected.Use(middleware.Auth(cfg))
 		{
 			protected.POST("/review", handler.Review(cfg, db))
+			protected.POST("/review/stream", handler.ReviewStream(cfg))
 			protected.GET("/reviews", handler.Reviews(db))
 		}
 	}
