@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import { login as doLogin, register as doRegister } from '../api/auth'
 
 const emit = defineEmits<{
-  login: [username: string]
+  login: [username: string, token: string]
 }>()
 
 const isLogin = ref(true)
@@ -23,7 +23,7 @@ async function submit() {
   try {
     if (isLogin.value) {
       const data = await doLogin(username.value, password.value)
-      emit('login', data.user.username)
+      emit('login', data.user.username, data.token)
     } else {
       await doRegister(username.value, password.value)
       isLogin.value = true
