@@ -66,7 +66,7 @@ func Call(apiKey, model string, messages []Message) (string, error) {
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 	if err != nil {
 		return "", fmt.Errorf("读取 LLM 响应失败: %w", err)
 	}
