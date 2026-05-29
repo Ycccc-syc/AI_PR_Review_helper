@@ -11,36 +11,40 @@ import (
 	"time"
 )
 
+// GitHub PR URL 解析正则: https://github.com/{owner}/{repo}/pull/{number}
 var prURLPattern = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/pull/(\d+)/?$`)
 
+// PRInfo 从 PR URL 解析出的信息 + API 返回的元数据
 type PRInfo struct {
-	Owner         string
-	Repo          string
-	Number        int
-	Title         string
-	Description   string
-	FilesChanged  int
-	Additions     int
-	Deletions     int
+	Owner        string
+	Repo         string
+	Number       int
+	Title        string
+	Description  string
+	FilesChanged int
+	Additions    int
+	Deletions    int
 }
 
+// githubPRResponse GitHub API 返回的 PR JSON 结构
 type githubPRResponse struct {
-	Title   string `json:"title"`
-	Body    string `json:"body"`
-	ChangedFiles int `json:"changed_files"`
-	Additions    int `json:"additions"`
-	Deletions    int `json:"deletions"`
+	Title        string `json:"title"`
+	Body         string `json:"body"`
+	ChangedFiles int    `json:"changed_files"`
+	Additions    int    `json:"additions"`
+	Deletions    int    `json:"deletions"`
 }
 
+// ParsePRURL 解析 GitHub PR URL，提取 owner/repo/number
 func ParsePRURL(raw string) (*PRInfo, error) {
 	raw = strings.TrimSpace(raw)
 	matches := prURLPattern.FindStringSubmatch(raw)
 	if matches == nil {
-		return nil, fmt.Errorf("invalid GitHub PR URL: %s", raw)
+		return nil, fmt.Errorf("无效的 GitHub PR 链接: %s", raw)
 	}
 	num, err := strconv.Atoi(matches[3])
 	if err != nil {
-		return nil, fmt.Errorf("invalid PR number: %s", matches[3])
+		return nil, fmt.Errorf("无效的 PR 编号: %s", matches[3])
 	}
 	return &PRInfo{
 		Owner:  matches[1],
@@ -49,6 +53,7 @@ func ParsePRURL(raw string) (*PRInfo, error) {
 	}, nil
 }
 
+// FetchPRMeta 获取 PR 元数据（标题、描述、变更统计）
 func FetchPRMeta(token string, pr *PRInfo) error {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", pr.Owner, pr.Repo, pr.Number)
 	body, err := githubGet(token, url)
@@ -56,8 +61,8 @@ func FetchPRMeta(token string, pr *PRInfo) error {
 		return err
 	}
 	var resp githubPRResponse
-	if err := json.Unmarshal(body, &resp); err != nil {
-		return fmt.Errorf("failed to parse PR metadata: %w", err)
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return fmt.Errorf("解析 PR 元数据失败: %w", err)
 	}
 	pr.Title = resp.Title
 	pr.Description = resp.Body
@@ -67,15 +72,17 @@ func FetchPRMeta(token string, pr *PRInfo) error {
 	return nil
 }
 
+// FetchPRDiff 获取 PR 的 unified diff 文本
 func FetchPRDiff(token string, pr *PRInfo) (string, error) {
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", pr.Owner, pr.Repo, pr.Number)
 	return githubGet(token, url, "application/vnd.github.v3.diff")
 }
 
+// githubGet 封装 GitHub API 的 GET 请求，统一处理认证、限流、错误
 func githubGet(token string, url string, extraHeaders ...string) (string, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
+		return "", fmt.Errorf("创建请求失败: %w", err)
 	}
 	req.Header.Set("User-Agent", "ai-pr-review")
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
@@ -89,7 +96,7 @@ func githubGet(token string, url string, extraHeaders ...string) (string, error)
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("GitHub API request failed: %w", err)
+		return "", fmt.Errorf("GitHub API 请求失败: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -102,19 +109,19 @@ func githubGet(token string, url string, extraHeaders ...string) (string, error)
 				return githubGet(token, url, extraHeaders...)
 			}
 		}
-		return "", fmt.Errorf("GitHub API rate limit exceeded, try again later")
+		return "", fmt.Errorf("GitHub API 限流，请稍后重试")
 	}
 	if resp.StatusCode == 404 {
-		return "", fmt.Errorf("PR not found (404), check the URL and make sure the repo is not private")
+		return "", fmt.Errorf("PR 不存在 (404)，请检查链接或确认仓库不是私有")
 	}
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return "", fmt.Errorf("GitHub API returned %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf("GitHub API 返回 %d: %s", resp.StatusCode, string(body))
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+		return "", fmt.Errorf("读取响应体失败: %w", err)
 	}
 	return string(body), nil
 }
