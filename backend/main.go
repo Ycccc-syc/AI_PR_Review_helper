@@ -23,7 +23,7 @@ func main() {
 	logger.Init(cfg.LogLevel)
 	defer logger.Sync()
 
-	r := router.Setup()
+	r := router.Setup(cfg)
 
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
