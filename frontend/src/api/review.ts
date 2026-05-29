@@ -32,6 +32,59 @@ export interface ReviewResponse {
   stats: ReviewStats
 }
 
+// SSE 流式审查：onChunk 实时回调文本片段，返回最终解析结果
+export async function analyzePRStream(
+  prUrl: string,
+  onChunk: (text: string) => void,
+): Promise<ReviewResponse> {
+  const resp = await fetch('/api/v1/review/stream', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pr_url: prUrl }),
+  })
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(text || `请求失败 (${resp.status})`)
+  }
+
+  const reader = resp.body?.getReader()
+  if (!reader) throw new Error('浏览器不支持流式响应')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  return new Promise((resolve, reject) => {
+    function pump(): void {
+      reader!.read().then(({ done, value }) => {
+        if (done) return
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const msg = JSON.parse(line.slice(6))
+            if (msg.type === 'chunk') {
+              onChunk(msg.content)
+            } else if (msg.type === 'result') {
+              resolve(msg.data as ReviewResponse)
+            } else if (msg.type === 'error') {
+              reject(new Error(msg.message))
+            }
+          } catch { /* skip malformed */ }
+        }
+
+        pump()
+      }).catch(reject)
+    }
+
+    pump()
+  })
+}
+
 export async function analyzePR(prUrl: string, token?: string | null): Promise<ReviewResponse> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 120_000)

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 
 	"qiniudemo/config"
@@ -52,4 +53,53 @@ func Review(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 
 func formatPRNumber(n int) string {
 	return fmt.Sprintf("%d", n)
+}
+
+// ReviewStream SSE 流式审查，实时推送 LLM 分析文本
+func ReviewStream(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req model.ReviewRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			model.Error(c, -1, "请提供有效的 pr_url 参数")
+			return
+		}
+
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("X-Accel-Buffering", "no")
+		c.Writer.WriteHeader(200)
+
+		flusher, ok := c.Writer.(gin.ResponseWriter)
+		if !ok {
+			model.Error(c, -1, "SSE 不支持当前环境")
+			return
+		}
+
+		result, err := service.AnalyzePRStream(cfg, req.PRURL, func(chunk string) {
+			data, _ := json.Marshal(map[string]interface{}{
+				"type":    "chunk",
+				"content": chunk,
+			})
+			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+			flusher.Flush()
+		})
+
+		if err != nil {
+			data, _ := json.Marshal(map[string]string{
+				"type":    "error",
+				"message": err.Error(),
+			})
+			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+			flusher.Flush()
+			return
+		}
+
+		data, _ := json.Marshal(map[string]interface{}{
+			"type": "result",
+			"data": result,
+		})
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+	}
 }

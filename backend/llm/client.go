@@ -1,11 +1,13 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"qiniudemo/logger"
@@ -28,14 +30,32 @@ type chatRequest struct {
 	Temperature float64   `json:"temperature"`
 }
 
+// streamRequest 流式请求体
+type streamRequest struct {
+	Model       string    `json:"model"`
+	Messages    []Message `json:"messages"`
+	Temperature float64   `json:"temperature"`
+	Stream      bool      `json:"stream"`
+}
+
 // Choice DeepSeek API 返回的选项
 type choice struct {
 	Message Message `json:"message"`
+	Delta   struct {
+		Content string `json:"content"`
+	} `json:"delta"`
 }
 
 // ChatResponse DeepSeek API 返回体
 type chatResponse struct {
 	Choices []choice `json:"choices"`
+}
+
+// StreamChunk 流式响应的单个 chunk
+type StreamChunk struct {
+	Content string
+	Done    bool
+	Error   error
 }
 
 // Call DeepSeek Chat API，返回模型输出的文本
@@ -89,4 +109,77 @@ func Call(apiKey, model string, messages []Message) (string, error) {
 	}
 
 	return result.Choices[0].Message.Content, nil
+}
+
+// CallStream DeepSeek Chat API 流式调用，返回 chunk channel
+func CallStream(apiKey, model string, messages []Message) <-chan StreamChunk {
+	ch := make(chan StreamChunk, 100)
+
+	go func() {
+		defer close(ch)
+
+		reqBody := streamRequest{
+			Model:       model,
+			Messages:    messages,
+			Temperature: 0.3,
+			Stream:      true,
+		}
+
+		bodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			ch <- StreamChunk{Error: fmt.Errorf("序列化请求失败: %w", err)}
+			return
+		}
+
+		req, err := http.NewRequest("POST", deepseekBaseURL+"/v1/chat/completions", bytes.NewReader(bodyBytes))
+		if err != nil {
+			ch <- StreamChunk{Error: fmt.Errorf("创建请求失败: %w", err)}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+apiKey)
+
+		client := &http.Client{Timeout: 180 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			ch <- StreamChunk{Error: fmt.Errorf("LLM API 请求失败: %w", err)}
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+			ch <- StreamChunk{Error: fmt.Errorf("LLM API 返回 %d: %s", resp.StatusCode, string(body))}
+			return
+		}
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			data := strings.TrimPrefix(line, "data: ")
+			if data == "[DONE]" {
+				ch <- StreamChunk{Done: true}
+				return
+			}
+
+			var streamResp chatResponse
+			if err := json.Unmarshal([]byte(data), &streamResp); err != nil {
+				continue
+			}
+			if len(streamResp.Choices) > 0 && streamResp.Choices[0].Delta.Content != "" {
+				ch <- StreamChunk{Content: streamResp.Choices[0].Delta.Content}
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
+			ch <- StreamChunk{Error: fmt.Errorf("读取流式响应失败: %w", err)}
+			return
+		}
+		ch <- StreamChunk{Done: true}
+	}()
+
+	return ch
 }
