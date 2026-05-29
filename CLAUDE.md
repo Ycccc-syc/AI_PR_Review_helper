@@ -39,6 +39,7 @@ docker compose down            # 停止
 | 前端 | Vue 3 + TypeScript + Vite 8 |
 | 数据库 | PostgreSQL 16 |
 | 缓存 | Redis 7 |
+| AI | DeepSeek API（V3 或 R1） |
 
 ## 架构约定
 
