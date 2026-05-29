@@ -33,11 +33,26 @@ export interface ReviewResponse {
 }
 
 export async function analyzePR(prUrl: string): Promise<ReviewResponse> {
-  const resp = await fetch('/api/v1/review', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pr_url: prUrl }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 120_000)
+
+  let resp: Response
+  try {
+    resp = await fetch('/api/v1/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pr_url: prUrl }),
+      signal: controller.signal,
+    })
+  } finally {
+    clearTimeout(timer)
+  }
+
+  // 网络错误或超时时 resp 未赋值，直接 throw
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(text || `请求失败 (${resp.status})`)
+  }
 
   const json = await resp.json()
   if (json.code !== 0) {
