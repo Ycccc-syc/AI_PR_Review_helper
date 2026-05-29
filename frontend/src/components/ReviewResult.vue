@@ -22,7 +22,7 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
 </script>
 
 <template>
-  <div class="result-panel">
+  <div v-if="data" class="result-panel">
     <!-- 统计卡片 -->
     <div class="stats">
       <div class="stat"><span class="num">{{ data.stats.files_changed }}</span> 文件变更</div>
