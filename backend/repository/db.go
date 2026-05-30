@@ -27,6 +27,9 @@ func InitDB(host, port, user, password, dbname string) (*sql.DB, error) {
 }
 
 func migrate(db *sql.DB) error {
+	// 兼容旧表：为新列提供默认值
+	db.Exec(`ALTER TABLE review_logs ADD COLUMN IF NOT EXISTS result_json JSONB NOT NULL DEFAULT '{}'`)
+
 	schemas := []string{
 		`CREATE TABLE IF NOT EXISTS users (
 			id BIGSERIAL PRIMARY KEY,
@@ -41,6 +44,7 @@ func migrate(db *sql.DB) error {
 			pr_title TEXT NOT NULL DEFAULT '',
 			summary TEXT NOT NULL DEFAULT '',
 			risk_count INT NOT NULL DEFAULT 0,
+			result_json JSONB NOT NULL DEFAULT '{}',
 			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_review_logs_user_id ON review_logs(user_id)`,

@@ -40,10 +40,12 @@ func Review(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 		if userID, exists := c.Get("user_id"); exists {
 			if uid, ok := userID.(int64); ok {
 				riskCount := len(result.RiskItems)
-				_, saveErr := repository.SaveReviewLog(db, uid, req.PRURL, prTitle, result.Summary, riskCount)
+				_, saveErr := repository.SaveReviewLog(db, uid, req.PRURL, prTitle, result.Summary, riskCount, result)
 				if saveErr != nil {
 					logger.Log.Warn("save review log failed", zap.Error(saveErr))
 				}
+			} else {
+				logger.Log.Warn("user_id type assertion failed in Review", zap.Any("type", userID))
 			}
 		}
 
@@ -64,17 +66,18 @@ func ReviewStream(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
-		c.Writer.Header().Set("Content-Type", "text/event-stream")
-		c.Writer.Header().Set("Cache-Control", "no-cache")
-		c.Writer.Header().Set("Connection", "keep-alive")
-		c.Writer.Header().Set("X-Accel-Buffering", "no")
-		c.Writer.WriteHeader(200)
-
+		// 在设置 SSE 响应头之前校验，避免发送 JSON 错误时响应头已提交
 		flusher, ok := c.Writer.(gin.ResponseWriter)
 		if !ok {
 			model.Error(c, -1, "SSE 不支持当前环境")
 			return
 		}
+
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("X-Accel-Buffering", "no")
+		c.Writer.WriteHeader(200)
 
 		result, err := service.AnalyzePRStream(cfg, req.PRURL, func(chunk string) {
 			data, _ := json.Marshal(map[string]interface{}{
@@ -104,10 +107,12 @@ func ReviewStream(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 					prTitle = pr.Repo + " #" + formatPRNumber(pr.Number)
 				}
 				riskCount := len(result.RiskItems)
-				_, saveErr := repository.SaveReviewLog(db, uid, req.PRURL, prTitle, result.Summary, riskCount)
+				_, saveErr := repository.SaveReviewLog(db, uid, req.PRURL, prTitle, result.Summary, riskCount, result)
 				if saveErr != nil {
 					logger.Log.Warn("save review log failed", zap.Error(saveErr))
 				}
+			} else {
+				logger.Log.Warn("user_id type assertion failed", zap.Any("type", userID))
 			}
 		}
 
@@ -129,17 +134,17 @@ func AskStream(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 
-		c.Writer.Header().Set("Content-Type", "text/event-stream")
-		c.Writer.Header().Set("Cache-Control", "no-cache")
-		c.Writer.Header().Set("Connection", "keep-alive")
-		c.Writer.Header().Set("X-Accel-Buffering", "no")
-		c.Writer.WriteHeader(200)
-
 		flusher, ok := c.Writer.(gin.ResponseWriter)
 		if !ok {
 			model.Error(c, -1, "SSE 不支持当前环境")
 			return
 		}
+
+		c.Writer.Header().Set("Content-Type", "text/event-stream")
+		c.Writer.Header().Set("Cache-Control", "no-cache")
+		c.Writer.Header().Set("Connection", "keep-alive")
+		c.Writer.Header().Set("X-Accel-Buffering", "no")
+		c.Writer.WriteHeader(200)
 
 		answer, err := service.AskFollowUpStream(cfg, req.PRURL, req.Question, req.Context, func(chunk string) {
 			data, _ := json.Marshal(map[string]interface{}{

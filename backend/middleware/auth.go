@@ -21,7 +21,7 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 
 		tokenStr := strings.TrimPrefix(header, "Bearer ")
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok || t.Method.Alg() != "HS256" {
 				return nil, jwt.ErrSignatureInvalid
 			}
 			return []byte(cfg.JWTSecret), nil
@@ -62,7 +62,7 @@ func OptionalAuth(cfg *config.Config) gin.HandlerFunc {
 
 		tokenStr := strings.TrimPrefix(header, "Bearer ")
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok || t.Method.Alg() != "HS256" {
 				return nil, jwt.ErrSignatureInvalid
 			}
 			return []byte(cfg.JWTSecret), nil

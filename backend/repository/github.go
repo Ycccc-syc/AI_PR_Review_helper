@@ -12,7 +12,10 @@ import (
 )
 
 // GitHub PR URL 解析正则: https://github.com/{owner}/{repo}/pull/{number}
-var prURLPattern = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/pull/(\d+)/?$`)
+var (
+	prURLPattern = regexp.MustCompile(`^https?://github\.com/([^/]+)/([^/]+)/pull/(\d+)/?$`)
+	githubClient = &http.Client{Timeout: 30 * time.Second}
+)
 
 // PRInfo 从 PR URL 解析出的信息 + API 返回的元数据
 type PRInfo struct {
@@ -93,8 +96,7 @@ func githubGet(token string, url string, extraHeaders ...string) (string, error)
 		req.Header.Set("Accept", h)
 	}
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := githubClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("GitHub API 请求失败: %w", err)
 	}

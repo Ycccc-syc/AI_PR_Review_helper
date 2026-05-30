@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import type { ReviewResponse } from '../api/review'
 
@@ -9,11 +9,24 @@ const props = defineProps<{
 
 const router = useRouter()
 const activeTab = defineModel('tab', { default: 'risks' })
-const expanded = ref<Record<number, boolean>>({})
 
-function toggle(i: number) {
-  expanded.value[i] = !expanded.value[i]
+const animated = ref(false)
+
+const C = 2 * Math.PI * 52 // 圆环周长
+
+function ringStyle(score: number) {
+  const offset = animated.value ? C * (1 - score / 100) : C
+  return {
+    strokeDasharray: C,
+    strokeDashoffset: offset,
+    transition: animated.value ? 'stroke-dashoffset 1s cubic-bezier(0.34, 1.56, 0.64, 1)' : 'none',
+  }
 }
+
+onMounted(() => {
+  requestAnimationFrame(() => { animated.value = true })
+})
+
 
 function goAsk(index: number) {
   router.push({ path: '/ask', query: { i: String(index) } })
@@ -31,6 +44,90 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
 
 <template>
   <div v-if="data" class="result-panel">
+    <!-- 健康分：霓虹细环 -->
+    <div class="score-panel">
+      <!-- 综合评分 -->
+      <div class="score-ring-wrap">
+        <div class="ring-icon check">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+        </div>
+        <div class="score-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="52" />
+            <circle
+              class="ring-fill purple"
+              cx="60" cy="60" r="52"
+              :style="ringStyle(data.health_score.total)"
+            />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-num">{{ data.health_score.total }}</span>
+            <span class="ring-label">综合评分</span>
+          </div>
+        </div>
+      </div>
+      <!-- 安全 -->
+      <div class="score-ring-wrap">
+        <div class="ring-icon shield">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <div class="score-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="52" />
+            <circle
+              class="ring-fill red"
+              cx="60" cy="60" r="52"
+              :style="ringStyle(data.health_score.security)"
+            />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-num">{{ data.health_score.security }}</span>
+            <span class="ring-label">安全</span>
+          </div>
+        </div>
+      </div>
+      <!-- 性能 -->
+      <div class="score-ring-wrap">
+        <div class="ring-icon bolt">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+        </div>
+        <div class="score-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="52" />
+            <circle
+              class="ring-fill gold"
+              cx="60" cy="60" r="52"
+              :style="ringStyle(data.health_score.performance)"
+            />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-num">{{ data.health_score.performance }}</span>
+            <span class="ring-label">性能</span>
+          </div>
+        </div>
+      </div>
+      <!-- 可维护 -->
+      <div class="score-ring-wrap">
+        <div class="ring-icon code">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg>
+        </div>
+        <div class="score-ring">
+          <svg viewBox="0 0 120 120">
+            <circle class="ring-track" cx="60" cy="60" r="52" />
+            <circle
+              class="ring-fill green"
+              cx="60" cy="60" r="52"
+              :style="ringStyle(data.health_score.maintainability)"
+            />
+          </svg>
+          <div class="ring-center">
+            <span class="ring-num">{{ data.health_score.maintainability }}</span>
+            <span class="ring-label">可维护</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 统计栏 -->
     <div class="stats">
       <div class="stat">
@@ -100,28 +197,16 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
       </div>
     </div>
 
+
     <!-- 改进建议 -->
     <div v-if="activeTab === 'suggestions'" class="tab-content">
       <div v-if="!hasSuggestions" class="empty">暂无改进建议</div>
-      <div v-for="(s, i) in data.suggestions" :key="i" class="suggestion-card" @click="toggle(i)">
+      <div v-for="(s, i) in data.suggestions" :key="i" class="suggestion-card">
         <div class="sug-header">
           <span class="priority-badge" :class="s.priority">
             {{ { high: 'HIGH', medium: 'MED', low: 'LOW' }[s.priority] }}
           </span>
           <span class="sug-content">{{ s.content }}</span>
-          <svg
-            class="chevron"
-            :class="{ open: expanded[i] }"
-            width="16" height="16" viewBox="0 0 24 24"
-            fill="none" stroke="currentColor" stroke-width="2"
-          >
-            <path d="M6 9l6 6 6-6"/>
-          </svg>
-        </div>
-        <div v-if="expanded[i]" class="sug-detail">
-          <div class="code-block">
-            <code>// 示例代码片段将在后续版本中根据具体上下文生成</code>
-          </div>
         </div>
       </div>
     </div>
@@ -140,6 +225,118 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* 健康分面板：毛玻璃卡片 */
+.score-panel {
+  display: flex;
+  gap: 20px;
+  padding: 28px 20px;
+  background: rgba(22, 27, 34, 0.65);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(48, 54, 61, 0.6);
+  border-radius: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+/* 单个圆环容器 */
+.score-ring-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 140px;
+}
+
+/* 图标 */
+.ring-icon {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: 18px;
+  height: 18px;
+}
+.ring-icon svg { width: 100%; height: 100%; }
+.ring-icon.check  { color: #a78bfa; }
+.ring-icon.shield { color: #f87171; }
+.ring-icon.bolt   { color: #fbbf24; }
+.ring-icon.code   { color: #4ade80; }
+
+/* SVG 圆环 */
+.score-ring {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.score-ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+/* 底层轨道 */
+.ring-track {
+  fill: none;
+  stroke: rgba(48, 54, 61, 0.5);
+  stroke-width: 3;
+}
+
+/* 进度条 */
+.ring-fill {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.ring-fill.purple { stroke: #a78bfa; filter: drop-shadow(0 0 8px rgba(167, 139, 250, 0.6)); }
+.ring-fill.red    { stroke: #f87171; filter: drop-shadow(0 0 8px rgba(248, 113, 113, 0.6)); }
+.ring-fill.gold   { stroke: #fbbf24; filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.6)); }
+.ring-fill.green  { stroke: #4ade80; filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.6)); }
+
+/* 环中心数字 */
+.ring-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.ring-num {
+  font-family: var(--font-mono);
+  font-size: 30px;
+  font-weight: 800;
+  color: #e6edf3;
+  line-height: 1;
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
+}
+.ring-label {
+  font-size: 12px;
+  color: #8b949e;
+  letter-spacing: 0.5px;
+}
+
+/* 呼吸动画 */
+@keyframes breathe {
+  0%, 100% { opacity: 0.7; }
+  50%      { opacity: 1; }
+}
+.score-ring-wrap {
+  animation: breathe 3s ease-in-out infinite;
+}
+.score-ring-wrap:nth-child(1) { animation-delay: 0s; }
+.score-ring-wrap:nth-child(2) { animation-delay: 0.75s; }
+.score-ring-wrap:nth-child(3) { animation-delay: 1.5s; }
+.score-ring-wrap:nth-child(4) { animation-delay: 2.25s; }
 
 /* 统计栏 */
 .stats {
@@ -316,12 +513,6 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
   border-radius: 8px;
   padding: 14px 18px;
   margin-bottom: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-
-.suggestion-card:hover {
-  border-color: var(--accent);
 }
 
 .sug-header {
@@ -349,35 +540,6 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.6;
-}
-
-.chevron {
-  color: var(--text-muted);
-  flex-shrink: 0;
-  transition: transform 0.2s;
-  margin-top: 2px;
-}
-
-.chevron.open {
-  transform: rotate(180deg);
-}
-
-.sug-detail {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.code-block {
-  background: var(--bg-primary);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 14px 16px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text-secondary);
-  line-height: 1.6;
-  overflow-x: auto;
 }
 
 /* 追问按钮 */

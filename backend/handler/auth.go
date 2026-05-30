@@ -12,7 +12,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-func Register(db *sql.DB) gin.HandlerFunc {
+func Register(db *sql.DB, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req model.RegisterRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -26,8 +26,14 @@ func Register(db *sql.DB) gin.HandlerFunc {
 			return
 		}
 
+		token, err := generateToken(user.ID, cfg.JWTSecret)
+		if err != nil {
+			model.Error(c, -1, "生成令牌失败")
+			return
+		}
+
 		model.Success(c, model.AuthResponse{
-			Token: "",
+			Token: token,
 			User:  *user,
 		})
 	}

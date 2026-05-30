@@ -1,4 +1,5 @@
 import { getToken } from './auth'
+import type { ReviewResponse } from './review'
 
 export interface ReviewLog {
   id: number
@@ -8,6 +9,17 @@ export interface ReviewLog {
   summary: string
   risk_count: number
   created_at: string
+}
+
+export interface ReviewDetail {
+  id: number
+  user_id: number
+  pr_url: string
+  pr_title: string
+  summary: string
+  risk_count: number
+  created_at: string
+  result: ReviewResponse | null
 }
 
 export async function fetchHistory(limit = 20, offset = 0): Promise<ReviewLog[]> {
@@ -24,6 +36,22 @@ export async function fetchHistory(limit = 20, offset = 0): Promise<ReviewLog[]>
     throw new Error(json.message || '获取历史记录失败')
   }
   return json.data as ReviewLog[]
+}
+
+export async function fetchReviewDetail(id: number): Promise<ReviewDetail> {
+  const token = getToken()
+  const resp = await fetch(`/api/v1/reviews/${id}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+
+  const json = await resp.json()
+  if (json.code !== 0) {
+    throw new Error(json.message || '获取记录详情失败')
+  }
+  return json.data as ReviewDetail
 }
 
 export function formatTime(iso: string): string {

@@ -17,6 +17,9 @@ import (
 
 const deepseekBaseURL = "https://api.deepseek.com"
 
+var httpClient = &http.Client{Timeout: 120 * time.Second}
+var streamClient = &http.Client{Timeout: 180 * time.Second}
+
 // Message DeepSeek API 消息结构
 type Message struct {
 	Role    string `json:"role"`
@@ -78,8 +81,7 @@ func Call(apiKey, model string, messages []Message) (string, error) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		logger.Log.Error("LLM 请求失败", zap.Error(err))
 		return "", fmt.Errorf("LLM API 请求失败: %w", err)
@@ -117,6 +119,11 @@ func CallStream(apiKey, model string, messages []Message) <-chan StreamChunk {
 
 	go func() {
 		defer close(ch)
+		defer func() {
+			if r := recover(); r != nil {
+				ch <- StreamChunk{Error: fmt.Errorf("panic in stream: %v", r)}
+			}
+		}()
 
 		reqBody := streamRequest{
 			Model:       model,
@@ -139,8 +146,7 @@ func CallStream(apiKey, model string, messages []Message) <-chan StreamChunk {
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 
-		client := &http.Client{Timeout: 180 * time.Second}
-		resp, err := client.Do(req)
+		resp, err := streamClient.Do(req)
 		if err != nil {
 			ch <- StreamChunk{Error: fmt.Errorf("LLM API 请求失败: %w", err)}
 			return

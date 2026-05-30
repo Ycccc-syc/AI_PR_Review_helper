@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { fetchHistory, formatTime, type ReviewLog } from '../api/history'
+import { useRouter } from 'vue-router'
+import { fetchHistory, fetchReviewDetail, formatTime, type ReviewLog } from '../api/history'
+import { useReview } from '../composables/useReview'
 
+const router = useRouter()
+const reviewStore = useReview()
 const logs = ref<ReviewLog[]>([])
 const loading = ref(false)
 const error = ref('')
+const loadingId = ref<number | null>(null)
 
 async function load() {
   loading.value = true
@@ -15,6 +20,24 @@ async function load() {
     error.value = e.message || '加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function goDetail(log: ReviewLog) {
+  if (loadingId.value) return
+  loadingId.value = log.id
+  try {
+    const detail = await fetchReviewDetail(log.id)
+    if (detail.result) {
+      reviewStore.setReview(detail.result, log.pr_url)
+      router.push('/')
+    } else {
+      error.value = '该记录未存储完整结果（可能是旧版数据）'
+    }
+  } catch (e: any) {
+    error.value = e.message || '加载详情失败'
+  } finally {
+    loadingId.value = null
   }
 }
 
@@ -37,14 +60,22 @@ defineExpose({ refresh: load })
     <div v-else-if="logs.length === 0" class="history-empty">暂无审查记录</div>
 
     <div v-else class="history-list">
-      <div v-for="log in logs" :key="log.id" class="history-item">
+      <div
+        v-for="log in logs" :key="log.id"
+        class="history-item"
+        :class="{ loading: loadingId === log.id }"
+        @click="goDetail(log)"
+      >
         <div class="item-top">
-          <a :href="log.pr_url" target="_blank" class="pr-link">{{ log.pr_title || log.pr_url }}</a>
+          <span class="pr-title">{{ log.pr_title || log.pr_url }}</span>
           <span class="time">{{ formatTime(log.created_at) }}</span>
         </div>
         <p class="item-summary">{{ log.summary }}</p>
         <div class="item-meta">
           <span class="risk-badge">{{ log.risk_count }} 个风险项</span>
+          <span class="expand-hint">
+            {{ loadingId === log.id ? '加载中...' : '点击查看完整报告 →' }}
+          </span>
         </div>
       </div>
     </div>
@@ -113,11 +144,24 @@ defineExpose({ refresh: load })
   background: var(--bg-secondary);
   border: 1px solid var(--border);
   border-radius: 10px;
-  transition: border-color 0.15s;
+  cursor: pointer;
+  transition: border-color 0.15s, opacity 0.15s;
 }
 
 .history-item:hover {
   border-color: var(--accent);
+}
+
+.history-item.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.pr-title {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: var(--font-mono);
 }
 
 .item-top {
@@ -125,19 +169,6 @@ defineExpose({ refresh: load })
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
-}
-
-.pr-link {
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-  font-family: var(--font-mono);
-}
-
-.pr-link:hover {
-  color: var(--accent-hover);
-  text-decoration: underline;
 }
 
 .time {
@@ -161,6 +192,7 @@ defineExpose({ refresh: load })
 .item-meta {
   display: flex;
   gap: 12px;
+  align-items: center;
 }
 
 .risk-badge {
@@ -170,5 +202,10 @@ defineExpose({ refresh: load })
   color: var(--orange);
   border-radius: 4px;
   font-family: var(--font-mono);
+}
+
+.expand-hint {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 </style>

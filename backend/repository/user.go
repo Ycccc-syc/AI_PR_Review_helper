@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"qiniudemo/model"
 
@@ -48,18 +49,9 @@ func VerifyPassword(hashed, plain string) bool {
 }
 
 func isDuplicate(err error) bool {
-	return err != nil && (contains(err.Error(), "duplicate") || contains(err.Error(), "唯一") || contains(err.Error(), "unique"))
-}
-
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && searchString(s, substr)
-}
-
-func searchString(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	if err == nil {
+		return false
 	}
-	return false
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "duplicate") || strings.Contains(msg, "unique")
 }
