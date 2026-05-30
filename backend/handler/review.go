@@ -56,7 +56,7 @@ func formatPRNumber(n int) string {
 }
 
 // ReviewStream SSE 流式审查，实时推送 LLM 分析文本
-func ReviewStream(cfg *config.Config) gin.HandlerFunc {
+func ReviewStream(cfg *config.Config, db *sql.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req model.ReviewRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -93,6 +93,22 @@ func ReviewStream(cfg *config.Config) gin.HandlerFunc {
 			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
 			flusher.Flush()
 			return
+		}
+
+		// 自动入库（仅已登录用户）
+		if userID, exists := c.Get("user_id"); exists {
+			if uid, ok := userID.(int64); ok {
+				pr, _ := repository.ParsePRURL(req.PRURL)
+				prTitle := ""
+				if pr != nil {
+					prTitle = pr.Repo + " #" + formatPRNumber(pr.Number)
+				}
+				riskCount := len(result.RiskItems)
+				_, saveErr := repository.SaveReviewLog(db, uid, req.PRURL, prTitle, result.Summary, riskCount)
+				if saveErr != nil {
+					logger.Log.Warn("save review log failed", zap.Error(saveErr))
+				}
+			}
 		}
 
 		data, _ := json.Marshal(map[string]interface{}{
