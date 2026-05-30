@@ -30,11 +30,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## 常用命令
 
 ```bash
+# 一键开发
+make dev                       # 同时启动后端 + 前端（自动安装依赖）
+make docker-local              # Docker 启动 DB/Redis，前后端本地跑
+make test                      # go vet + vue-tsc
+
 # 后端
 cd backend
 go mod tidy                    # 安装依赖
 go run main.go                 # 启动服务（端口 8080）
-go build -o server .           # 编译
+go build -o server.exe .       # 编译
 
 # 前端
 cd frontend
@@ -42,10 +47,14 @@ npm install                    # 安装依赖
 npm run dev                    # 启动开发服务器
 npm run build                  # 类型检查 + 构建
 
-# Docker
+# Docker 全栈
 cp .env.example .env
-docker compose up -d           # 启动全部服务
+docker compose up -d --build   # 启动全部服务（后端+前端+DB+Redis）
 docker compose down            # 停止
+make docker-reset              # 清除数据卷 + 重建
+
+# 仅启动数据库
+docker compose up -d postgres redis
 ```
 
 ## 技术栈

@@ -3,10 +3,8 @@ import { ref, nextTick, onMounted } from 'vue'
 import ReviewInput from '../components/ReviewInput.vue'
 import ReviewResult from '../components/ReviewResult.vue'
 import { analyzePRStream, type ReviewResponse } from '../api/review'
-import { useAuth } from '../composables/useAuth'
 import { useReview } from '../composables/useReview'
 
-const auth = useAuth()
 const reviewStore = useReview()
 const reviewRef = ref<InstanceType<typeof ReviewInput>>()
 const result = ref<ReviewResponse | null>(null)
