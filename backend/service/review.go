@@ -292,3 +292,35 @@ func splitDiffByFile(diff string, filesPerChunk int) []string {
 	}
 	return chunks
 }
+
+// AskFollowUpStream 流式追问，onChunk 推送文本片段，返回完整回答
+func AskFollowUpStream(cfg *config.Config, prURL, question, contextJSON string, onChunk func(string)) (string, error) {
+	pr, err := repository.ParsePRURL(prURL)
+	if err != nil {
+		return "", fmt.Errorf("解析 PR URL 失败: %w", err)
+	}
+
+	if err := repository.FetchPRMeta(cfg.GitHubToken, pr); err != nil {
+		return "", fmt.Errorf("获取 PR 信息失败: %w", err)
+	}
+
+	diff, _ := repository.FetchPRDiff(cfg.GitHubToken, pr)
+	diff = filterDiff(diff)
+
+	messages := prompt.BuildAskMessages(pr.Title, pr.Description, diff, question, contextJSON)
+
+	var fullText strings.Builder
+	for chunk := range llm.CallStream(cfg.DeepSeekAPIKey, cfg.DeepSeekModel, messages) {
+		if chunk.Error != nil {
+			return "", chunk.Error
+		}
+		if chunk.Done {
+			break
+		}
+		fullText.WriteString(chunk.Content)
+		if onChunk != nil {
+			onChunk(chunk.Content)
+		}
+	}
+	return fullText.String(), nil
+}

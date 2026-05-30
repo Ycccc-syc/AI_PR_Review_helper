@@ -4,8 +4,10 @@ import ReviewInput from '../components/ReviewInput.vue'
 import ReviewResult from '../components/ReviewResult.vue'
 import { analyzePRStream, type ReviewResponse } from '../api/review'
 import { useAuth } from '../composables/useAuth'
+import { useReview } from '../composables/useReview'
 
 const auth = useAuth()
+const reviewStore = useReview()
 const reviewRef = ref<InstanceType<typeof ReviewInput>>()
 const result = ref<ReviewResponse | null>(null)
 const error = ref('')
@@ -13,6 +15,7 @@ const activeTab = ref('risks')
 
 const streamingText = ref('')
 const isStreaming = ref(false)
+const prUrl = ref('')
 let errorTimer: ReturnType<typeof setTimeout> | null = null
 
 function showError(msg: string) {
@@ -22,6 +25,7 @@ function showError(msg: string) {
 }
 
 async function onSubmit(url: string) {
+  prUrl.value = url
   error.value = ''
   result.value = null
   streamingText.value = ''
@@ -37,6 +41,7 @@ async function onSubmit(url: string) {
         if (el) el.scrollTop = el.scrollHeight
       })
     }, token)
+    reviewStore.setReview(result.value, url)
   } catch (e: any) {
     showError(e.message || '分析失败，请稍后重试')
   } finally {

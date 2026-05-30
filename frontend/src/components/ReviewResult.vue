@@ -1,16 +1,22 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import type { ReviewResponse } from '../api/review'
 
 const props = defineProps<{
   data: ReviewResponse
 }>()
 
+const router = useRouter()
 const activeTab = defineModel('tab', { default: 'risks' })
 const expanded = ref<Record<number, boolean>>({})
 
 function toggle(i: number) {
   expanded.value[i] = !expanded.value[i]
+}
+
+function goAsk(index: number) {
+  router.push({ path: '/ask', query: { i: String(index) } })
 }
 
 const tabs = [
@@ -82,6 +88,14 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
         <div class="risk-fix">
           <div class="fix-label">修复建议</div>
           {{ r.suggestion }}
+        </div>
+        <div class="risk-actions">
+          <button class="ask-btn" @click="goAsk(i)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            追问
+          </button>
         </div>
       </div>
     </div>
@@ -364,5 +378,30 @@ const hasSuggestions = computed(() => props.data.suggestions.length > 0)
   color: var(--text-secondary);
   line-height: 1.6;
   overflow-x: auto;
+}
+
+/* 追问按钮 */
+.risk-actions {
+  margin-top: 10px;
+}
+
+.ask-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px;
+  background: rgba(99, 102, 241, 0.06);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.ask-btn:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.3);
+  transform: translateY(-1px);
 }
 </style>
