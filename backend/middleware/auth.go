@@ -50,3 +50,41 @@ func Auth(cfg *config.Config) gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// OptionalAuth 提取 JWT 中 user_id 但不强制登录，未登录也放行
+func OptionalAuth(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		header := c.GetHeader("Authorization")
+		if header == "" || !strings.HasPrefix(header, "Bearer ") {
+			c.Next()
+			return
+		}
+
+		tokenStr := strings.TrimPrefix(header, "Bearer ")
+		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
+			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrSignatureInvalid
+			}
+			return []byte(cfg.JWTSecret), nil
+		})
+		if err != nil || !token.Valid {
+			c.Next()
+			return
+		}
+
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
+			c.Next()
+			return
+		}
+
+		userID, ok := claims["user_id"].(float64)
+		if !ok {
+			c.Next()
+			return
+		}
+
+		c.Set("user_id", int64(userID))
+		c.Next()
+	}
+}

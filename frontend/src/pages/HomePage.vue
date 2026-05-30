@@ -3,7 +3,9 @@ import { ref, nextTick } from 'vue'
 import ReviewInput from '../components/ReviewInput.vue'
 import ReviewResult from '../components/ReviewResult.vue'
 import { analyzePRStream, type ReviewResponse } from '../api/review'
+import { useAuth } from '../composables/useAuth'
 
+const auth = useAuth()
 const reviewRef = ref<InstanceType<typeof ReviewInput>>()
 const result = ref<ReviewResponse | null>(null)
 const error = ref('')
@@ -11,6 +13,13 @@ const activeTab = ref('risks')
 
 const streamingText = ref('')
 const isStreaming = ref(false)
+let errorTimer: ReturnType<typeof setTimeout> | null = null
+
+function showError(msg: string) {
+  error.value = msg
+  if (errorTimer) clearTimeout(errorTimer)
+  errorTimer = setTimeout(() => { error.value = '' }, 3000)
+}
 
 async function onSubmit(url: string) {
   error.value = ''
@@ -19,6 +28,7 @@ async function onSubmit(url: string) {
   isStreaming.value = true
   reviewRef.value?.setLoading(true)
 
+  const token = localStorage.getItem('ai_pr_review_token')
   try {
     result.value = await analyzePRStream(url, (chunk) => {
       streamingText.value += chunk
@@ -26,9 +36,9 @@ async function onSubmit(url: string) {
         const el = document.getElementById('stream-box')
         if (el) el.scrollTop = el.scrollHeight
       })
-    })
+    }, token)
   } catch (e: any) {
-    error.value = e.message || '分析失败，请稍后重试'
+    showError(e.message || '分析失败，请稍后重试')
   } finally {
     isStreaming.value = false
     reviewRef.value?.setLoading(false)
@@ -40,7 +50,9 @@ async function onSubmit(url: string) {
   <div class="home">
     <ReviewInput ref="reviewRef" @submit="onSubmit" />
 
-    <div v-if="error" class="error">{{ error }}</div>
+    <Transition name="slide-fade">
+      <div v-if="error" class="error">{{ error }}</div>
+    </Transition>
 
     <!-- 流式分析面板 -->
     <div v-if="streamingText && !result" class="stream-panel">
@@ -65,12 +77,20 @@ async function onSubmit(url: string) {
 .error {
   max-width: 600px;
   margin: 0 auto 24px;
-  padding: 12px 20px;
+  padding: 10px 24px;
   background: #fef2f2;
   color: #dc2626;
-  border-radius: 8px;
-  font-size: 14px;
+  border-radius: 24px;
+  font-size: 13px;
   text-align: center;
+}
+
+.slide-fade-enter-active {
+  animation: fadeIn 0.4s ease;
+}
+
+.slide-fade-leave-active {
+  animation: fadeIn 0.3s ease reverse;
 }
 
 .stream-panel {
