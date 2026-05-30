@@ -30,6 +30,10 @@ func main() {
 	}
 	defer db.Close()
 
+	if _, err := repository.InitRedis(cfg.RedisAddr, cfg.RedisPassword); err != nil {
+		logger.Log.Warn("Redis 初始化失败，缓存功能不可用", zap.Error(err))
+	}
+
 	r := router.Setup(cfg, db)
 
 	srv := &http.Server{

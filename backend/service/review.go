@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"qiniudemo/config"
 	"qiniudemo/llm"
@@ -72,7 +73,7 @@ func shouldSkip(fileName string) bool {
 	return false
 }
 
-// AnalyzePR 完整 PR 分析流程：解析 URL → 拉取数据 → LLM 分析 → 结构化结果
+// AnalyzePR 完整 PR 分析流程：解析 URL → 拉取数据 → 查缓存 → LLM 分析 → 写缓存 → 结构化结果
 func AnalyzePR(cfg *config.Config, prURL string) (*model.ReviewResponse, error) {
 	pr, err := repository.ParsePRURL(prURL)
 	if err != nil {
@@ -97,6 +98,17 @@ func AnalyzePR(cfg *config.Config, prURL string) (*model.ReviewResponse, error) 
 		return nil, fmt.Errorf("该 PR 的文件变更已被过滤（可能仅包含 lock 文件或二进制文件）")
 	}
 
+	// 缓存检查：同一 PR 同一 diff 不重复调用 LLM
+	cacheKey := repository.CacheKey(pr.Owner, pr.Repo, pr.Number, diff)
+	if cached, ok := repository.GetCachedResult(cacheKey); ok {
+		var result model.ReviewResponse
+		if err := json.Unmarshal(cached, &result); err == nil {
+			logger.Log.Info("review cache hit", zap.String("key", cacheKey))
+			result.Stats = buildStats(pr, result.RiskItems)
+			return &result, nil
+		}
+	}
+
 	pr.Description = formatDescription(pr.Description)
 
 	var result model.ReviewResponse
@@ -110,6 +122,7 @@ func AnalyzePR(cfg *config.Config, prURL string) (*model.ReviewResponse, error) 
 	}
 
 	result.Stats = buildStats(pr, result.RiskItems)
+		repository.SetCachedResult(cacheKey, result, 1*time.Hour)
 	return &result, nil
 }
 
@@ -145,6 +158,16 @@ func AnalyzePRStream(cfg *config.Config, prURL string, onChunk func(string)) (*m
 		return AnalyzePR(cfg, prURL)
 	}
 
+	cacheKey := repository.CacheKey(pr.Owner, pr.Repo, pr.Number, diff)
+	if cached, ok := repository.GetCachedResult(cacheKey); ok {
+		var result model.ReviewResponse
+		if err := json.Unmarshal(cached, &result); err == nil {
+			logger.Log.Info("review cache hit (stream)", zap.String("key", cacheKey))
+			result.Stats = buildStats(pr, result.RiskItems)
+			return &result, nil
+		}
+	}
+
 	messages := prompt.BuildMessages(pr.Title, pr.Description, diff)
 
 	var fullText strings.Builder
@@ -169,6 +192,7 @@ func AnalyzePRStream(cfg *config.Config, prURL string, onChunk func(string)) (*m
 	}
 
 	result.Stats = buildStats(pr, result.RiskItems)
+		repository.SetCachedResult(cacheKey, result, 1*time.Hour)
 	return &result, nil
 }
 
