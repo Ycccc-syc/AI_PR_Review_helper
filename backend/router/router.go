@@ -32,6 +32,7 @@ func Setup(cfg *config.Config, db *sql.DB) *gin.Engine {
 		// review 允许未登录访问，OptionalAuth 提取已登录用户的 ID 以便自动入库
 		api.POST("/review", middleware.OptionalAuth(cfg), handler.Review(cfg, db))
 		api.POST("/review/stream", middleware.OptionalAuth(cfg), handler.ReviewStream(cfg, db))
+		api.POST("/review/ask", handler.AskStream(cfg))
 
 		protected := api.Group("")
 		protected.Use(middleware.Auth(cfg))

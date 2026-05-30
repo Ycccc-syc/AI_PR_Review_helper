@@ -103,6 +103,74 @@ export async function analyzePRStream(
   })
 }
 
+// SSE 流式追问：返回完整回答文本
+export async function askFollowUp(
+  prUrl: string,
+  question: string,
+  context: string,
+  onChunk: (text: string) => void,
+): Promise<string> {
+  const resp = await fetch('/api/v1/review/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pr_url: prUrl, question, context }),
+  })
+
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '')
+    throw new Error(text || `请求失败 (${resp.status})`)
+  }
+
+  const ct = resp.headers.get('content-type') || ''
+  if (!ct.includes('text/event-stream')) {
+    const json = await resp.json().catch(() => null)
+    if (json && json.code !== 0) throw new Error(json.message || '请求失败')
+    throw new Error('非预期的响应格式')
+  }
+
+  const reader = resp.body?.getReader()
+  if (!reader) throw new Error('浏览器不支持流式响应')
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let resolved = false
+
+  return new Promise((resolve, reject) => {
+    function pump(): void {
+      reader!.read().then(({ done, value }) => {
+        if (done) {
+          if (!resolved) reject(new Error('连接意外关闭'))
+          return
+        }
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const msg = JSON.parse(line.slice(6))
+            if (msg.type === 'chunk') {
+              onChunk(msg.content)
+            } else if (msg.type === 'result') {
+              resolved = true
+              resolve(msg.answer as string)
+            } else if (msg.type === 'error') {
+              resolved = true
+              reject(new Error(msg.message))
+            }
+          } catch { /* skip malformed */ }
+        }
+
+        pump()
+      }).catch(reject)
+    }
+
+    pump()
+  })
+}
+
 export async function analyzePR(prUrl: string, token?: string | null): Promise<ReviewResponse> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), 120_000)
