@@ -25,7 +25,7 @@ func Setup(cfg *config.Config, db *sql.DB) *gin.Engine {
 
 		auth := api.Group("/auth")
 		{
-			auth.POST("/register", handler.Register(db))
+			auth.POST("/register", handler.Register(db, cfg))
 			auth.POST("/login", handler.Login(db, cfg))
 		}
 
@@ -38,6 +38,7 @@ func Setup(cfg *config.Config, db *sql.DB) *gin.Engine {
 		protected.Use(middleware.Auth(cfg))
 		{
 			protected.GET("/reviews", handler.Reviews(db))
+			protected.GET("/reviews/:id", handler.ReviewDetail(db))
 		}
 	}
 

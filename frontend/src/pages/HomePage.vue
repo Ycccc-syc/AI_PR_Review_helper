@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import ReviewInput from '../components/ReviewInput.vue'
 import ReviewResult from '../components/ReviewResult.vue'
 import { analyzePRStream, type ReviewResponse } from '../api/review'
@@ -17,6 +17,14 @@ const streamingText = ref('')
 const isStreaming = ref(false)
 const prUrl = ref('')
 let errorTimer: ReturnType<typeof setTimeout> | null = null
+
+// 从历史记录跳转过来时，直接展示已保存的结果
+onMounted(() => {
+  if (reviewStore.result.value) {
+    result.value = reviewStore.result.value
+    prUrl.value = reviewStore.prUrl.value
+  }
+})
 
 function showError(msg: string) {
   error.value = msg

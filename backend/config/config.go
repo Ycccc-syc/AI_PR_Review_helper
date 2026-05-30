@@ -59,6 +59,19 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
+// WarnDefaults 在 Load 后调用，对不安全默认值输出警告
+func (c *Config) WarnDefaults() {
+	if c.JWTSecret == "change-me-in-production" {
+		println("[WARN] JWT_SECRET 使用默认值，生产环境请务必更换为强随机字符串")
+	}
+	if c.GitHubToken == "" {
+		println("[WARN] GITHUB_TOKEN 未设置，公开仓库限制 60次/小时，私仓无法访问")
+	}
+	if c.DeepSeekAPIKey == "" {
+		println("[WARN] DEEPSEEK_API_KEY 未设置，AI 分析功能不可用")
+	}
+}
+
 // loadDotEnv 从项目根目录读取 .env 文件，注入环境变量（不覆盖已有值）
 func loadDotEnv() {
 	paths := []string{".env", "../.env", "../../.env"}

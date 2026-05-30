@@ -16,6 +16,13 @@ export interface Suggestion {
   content: string
 }
 
+export interface HealthScore {
+  total: number
+  security: number
+  performance: number
+  maintainability: number
+}
+
 export interface ReviewStats {
   files_changed: number
   additions: number
@@ -27,6 +34,7 @@ export interface ReviewStats {
 
 export interface ReviewResponse {
   summary: string
+  health_score: HealthScore
   risk_items: RiskItem[]
   suggestions: Suggestion[]
   stats: ReviewStats

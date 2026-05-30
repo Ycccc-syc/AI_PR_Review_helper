@@ -56,6 +56,9 @@ func SetCachedResult(key string, value interface{}, ttl time.Duration) {
 	if rdb == nil {
 		return
 	}
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 

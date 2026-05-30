@@ -19,6 +19,7 @@ import (
 
 func main() {
 	cfg := config.Load()
+	cfg.WarnDefaults()
 
 	gin.SetMode(cfg.GinMode)
 	logger.Init(cfg.LogLevel)

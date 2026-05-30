@@ -6,14 +6,13 @@ import ReviewHistory from '../components/ReviewHistory.vue'
 
 const router = useRouter()
 const auth = useAuth()
-
-if (!auth.isLoggedIn.value) {
-  router.replace('/auth')
-}
-
 const historyRef = ref<InstanceType<typeof ReviewHistory>>()
 
 onMounted(() => {
+  if (!auth.isLoggedIn.value) {
+    router.replace('/auth')
+    return
+  }
   historyRef.value?.refresh()
 })
 </script>
