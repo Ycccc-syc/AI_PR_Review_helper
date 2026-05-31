@@ -2,9 +2,11 @@
 
 基于 DeepSeek 大模型的 GitHub PR 自动代码评审工具。输入 PR 链接，自动拉取代码变更，调用 LLM 智能分析，输出结构化报告。支持 SSE 流式输出、交互式追问、PR 健康分、用户系统与审查历史。
 
-## Demo 视频
+## 🎬 Demo 视频
 
-> [点击观看 Demo 视频](https://www.bilibili.com/)（待上传）
+AI PR Review Assistant - Demo Showcase
+
+https://b23.tv/ClKNnMd
 
 ---
 
