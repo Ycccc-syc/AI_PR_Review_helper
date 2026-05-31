@@ -40,18 +40,19 @@ func filterDiff(diff string) string {
 		return diff
 	}
 
-	kept := []string{parts[0]} // diff 开头的内容（如有）
+	var kept []string
+	if parts[0] != "" && !shouldSkip(extractFileName(parts[0])) {
+		kept = append(kept, parts[0])
+	}
 	for _, block := range parts[1:] {
-		// 提取文件路径: diff --git a/path/to/file b/path/to/file
 		firstLine := "diff --git " + block
-		fileName := extractFileName(firstLine)
-		if shouldSkip(fileName) {
+		if shouldSkip(extractFileName(firstLine)) {
 			continue
 		}
 		kept = append(kept, "diff --git "+block)
 	}
 
-	if len(kept) <= 1 {
+	if len(kept) == 0 {
 		return diff
 	}
 	return strings.Join(kept, "\n")
